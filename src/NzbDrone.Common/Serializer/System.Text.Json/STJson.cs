@@ -15,23 +15,25 @@ namespace NzbDrone.Common.Serializer
 
         public static JsonSerializerOptions GetSerializerSettings()
         {
-            var serializerSettings = new JsonSerializerOptions
-            {
-                AllowTrailingCommas = true,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-                PropertyNameCaseInsensitive = true,
-                DictionaryKeyPolicy = JsonNamingPolicy.CamelCase,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                WriteIndented = true
-            };
+            var settings = new JsonSerializerOptions();
+            ApplySerializerSettings(settings);
+            return settings;
+        }
+
+        public static void ApplySerializerSettings(JsonSerializerOptions serializerSettings)
+        {
+            serializerSettings.AllowTrailingCommas = true;
+            serializerSettings.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+            serializerSettings.PropertyNameCaseInsensitive = true;
+            serializerSettings.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
+            serializerSettings.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            serializerSettings.WriteIndented = true;
 
             serializerSettings.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, true));
             serializerSettings.Converters.Add(new STJVersionConverter());
             serializerSettings.Converters.Add(new STJHttpUriConverter());
             serializerSettings.Converters.Add(new STJTimeSpanConverter());
             serializerSettings.Converters.Add(new STJUtcConverter());
-
-            return serializerSettings;
         }
 
         public static T Deserialize<T>(string json)

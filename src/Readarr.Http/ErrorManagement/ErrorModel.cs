@@ -1,4 +1,8 @@
-﻿using Readarr.Http.Exceptions;
+using System.Net;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using NzbDrone.Common.Serializer;
+using Readarr.Http.Exceptions;
 
 namespace Readarr.Http.ErrorManagement
 {
@@ -16,6 +20,13 @@ namespace Readarr.Http.ErrorManagement
 
         public ErrorModel()
         {
+        }
+
+        public async Task WriteToResponse(HttpResponse response, HttpStatusCode statusCode = HttpStatusCode.InternalServerError)
+        {
+            response.StatusCode = (int)statusCode;
+            response.ContentType = "application/json";
+            await response.WriteAsync(STJson.ToJson(this));
         }
     }
 }

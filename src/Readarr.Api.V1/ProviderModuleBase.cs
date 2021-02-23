@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using FluentValidation;
 using FluentValidation.Results;
-using Nancy;
+using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Serializer;
 using NzbDrone.Core.ThingiProvider;
 using NzbDrone.Core.Validation;
@@ -10,7 +10,7 @@ using Readarr.Http;
 
 namespace Readarr.Api.V1
 {
-    public abstract class ProviderModuleBase<TProviderResource, TProvider, TProviderDefinition> : ReadarrRestModule<TProviderResource>
+    public abstract class ProviderControllerBase<TProviderResource, TProvider, TProviderDefinition> : ReadarrRestController<TProviderResource>
         where TProviderDefinition : ProviderDefinition, new()
         where TProvider : IProvider
         where TProviderResource : ProviderResource<TProviderResource>, new()
@@ -18,16 +18,10 @@ namespace Readarr.Api.V1
         private readonly IProviderFactory<TProvider, TProviderDefinition> _providerFactory;
         private readonly ProviderResourceMapper<TProviderResource, TProviderDefinition> _resourceMapper;
 
-        protected ProviderModuleBase(IProviderFactory<TProvider, TProviderDefinition> providerFactory, string resource, ProviderResourceMapper<TProviderResource, TProviderDefinition> resourceMapper)
-            : base(resource)
+        protected ProviderControllerBase(IProviderFactory<TProvider, TProviderDefinition> providerFactory, string resource, ProviderResourceMapper<TProviderResource, TProviderDefinition> resourceMapper)
         {
             _providerFactory = providerFactory;
             _resourceMapper = resourceMapper;
-
-            Get("schema", x => GetTemplates());
-            Post("test", x => Test(ReadResourceFromRequest(true)));
-            Post("testall", x => TestAll());
-            Post("action/{action}", x => RequestAction(x.action, ReadResourceFromRequest(true, true)));
 
             GetResourceAll = GetAll;
             GetResourceById = GetProviderById;
@@ -110,7 +104,8 @@ namespace Readarr.Api.V1
             _providerFactory.Delete(id);
         }
 
-        private object GetTemplates()
+        [HttpGet("schema")]
+        public List<TProviderResource> GetTemplates()
         {
             var defaultDefinitions = _providerFactory.GetDefaultDefinitions().OrderBy(p => p.ImplementationName).ToList();
 
@@ -131,7 +126,8 @@ namespace Readarr.Api.V1
             return result;
         }
 
-        private object Test(TProviderResource providerResource)
+        [HttpPost("test")]
+        public object Test([FromBody] TProviderResource providerResource)
         {
             var providerDefinition = GetDefinition(providerResource, true);
 
@@ -140,7 +136,8 @@ namespace Readarr.Api.V1
             return "{}";
         }
 
-        private object TestAll()
+        [HttpPost("testall")]
+        public IActionResult TestAll()
         {
             var providerDefinitions = _providerFactory.All()
                 .Where(c => c.Settings.Validate().IsValid && c.Enable)
@@ -158,19 +155,19 @@ namespace Readarr.Api.V1
                 });
             }
 
-            return ResponseWithCode(result, result.Any(c => !c.IsValid) ? HttpStatusCode.BadRequest : HttpStatusCode.OK);
+            return result.Any(c => !c.IsValid) ? BadRequest(result) : Ok(result);
         }
 
-        private object RequestAction(string action, TProviderResource providerResource)
+        [HttpPost("action/{name}")]
+        public IActionResult RequestAction(string name, [FromBody] TProviderResource resource)
         {
-            var providerDefinition = GetDefinition(providerResource, true, false);
+            var providerDefinition = GetDefinition(resource, true, false);
 
-            var query = ((IDictionary<string, object>)Request.Query.ToDictionary()).ToDictionary(k => k.Key, k => k.Value.ToString());
+            var query = Request.Query.ToDictionary(x => x.Key, x => x.Value.ToString());
 
-            var data = _providerFactory.RequestAction(providerDefinition, action, query);
-            Response resp = data.ToJson();
-            resp.ContentType = "application/json";
-            return resp;
+            var data = _providerFactory.RequestAction(providerDefinition, name, query);
+
+            return Content(data.ToJson(), "application/json");
         }
 
         protected virtual void Validate(TProviderDefinition definition, bool includeWarnings)

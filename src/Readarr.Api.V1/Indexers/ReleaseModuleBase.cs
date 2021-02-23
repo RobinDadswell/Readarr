@@ -4,7 +4,7 @@ using Readarr.Http;
 
 namespace Readarr.Api.V1.Indexers
 {
-    public abstract class ReleaseModuleBase : ReadarrRestModule<ReleaseResource>
+    public abstract class ReleaseControllerBase : ReadarrRestController<ReleaseResource>
     {
         protected virtual List<ReleaseResource> MapDecisions(IEnumerable<DownloadDecision> decisions)
         {

@@ -1,119 +1,89 @@
 using System;
 using System.Linq;
 using System.Net;
-using Nancy;
+using Microsoft.AspNetCore.Http;
+using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 
 namespace Readarr.Http.Extensions
 {
     public static class RequestExtensions
     {
-        public static bool IsApiRequest(this Request request)
+        public static bool IsApiRequest(this HttpRequest request)
         {
-            return request.Path.StartsWith("/api/", StringComparison.InvariantCultureIgnoreCase);
+            return request.Path.StartsWithSegments("/api", StringComparison.InvariantCultureIgnoreCase);
         }
 
-        public static bool IsFeedRequest(this Request request)
+        public static bool IsFeedRequest(this HttpRequest request)
         {
-            return request.Path.StartsWith("/feed/", StringComparison.InvariantCultureIgnoreCase);
+            return request.Path.StartsWithSegments("/feed", StringComparison.InvariantCultureIgnoreCase);
         }
 
-        public static bool IsSignalRRequest(this Request request)
+        public static bool IsSignalRRequest(this HttpRequest request)
         {
-            return request.Path.StartsWith("/signalr/", StringComparison.InvariantCultureIgnoreCase);
+            return request.Path.StartsWithSegments("/signalr", StringComparison.InvariantCultureIgnoreCase);
         }
 
-        public static bool IsLocalRequest(this Request request)
+        public static bool IsLocalRequest(this HttpRequest request)
         {
-            return request.UserHostAddress.Equals("localhost") ||
-                    request.UserHostAddress.Equals("127.0.0.1") ||
-                    request.UserHostAddress.Equals("::1");
+            return request.Host.Equals("localhost") ||
+                    request.Host.Equals("127.0.0.1") ||
+                    request.Host.Equals("::1");
         }
 
-        public static bool IsLoginRequest(this Request request)
+        public static bool IsLoginRequest(this HttpRequest request)
         {
             return request.Path.Equals("/login", StringComparison.InvariantCultureIgnoreCase);
         }
 
-        public static bool IsContentRequest(this Request request)
+        public static bool IsContentRequest(this HttpRequest request)
         {
-            return request.Path.StartsWith("/Content/", StringComparison.InvariantCultureIgnoreCase);
+            return request.Path.StartsWithSegments("/Content", StringComparison.InvariantCultureIgnoreCase);
         }
 
-        public static bool GetBooleanQueryParameter(this Request request, string parameter, bool defaultValue = false)
+        public static bool GetBooleanQueryParameter(this HttpRequest request, string parameter, bool defaultValue = false)
         {
             var parameterValue = request.Query[parameter];
 
-            if (parameterValue.HasValue)
+            if (parameterValue.Any())
             {
-                return bool.Parse(parameterValue.Value);
+                return bool.Parse(parameterValue.ToString());
             }
 
             return defaultValue;
         }
 
-        public static bool IsSharedContentRequest(this Request request)
+        public static bool IsSharedContentRequest(this HttpRequest request)
         {
-            return request.Path.StartsWith("/MediaCover/", StringComparison.InvariantCultureIgnoreCase) ||
-                   request.Path.StartsWith("/Content/Images/", StringComparison.InvariantCultureIgnoreCase);
+            return request.Path.StartsWithSegments("/MediaCover", StringComparison.InvariantCultureIgnoreCase) ||
+                   request.Path.StartsWithSegments("/Content/Images", StringComparison.InvariantCultureIgnoreCase);
         }
 
-        public static int GetIntegerQueryParameter(this Request request, string parameter, int defaultValue = 0)
+        public static string GetRemoteIP(this HttpContext context)
         {
-            var parameterValue = request.Query[parameter];
-
-            if (parameterValue.HasValue)
-            {
-                return int.Parse(parameterValue.Value);
-            }
-
-            return defaultValue;
+            return context?.Request?.GetRemoteIP() ?? "Unknown";
         }
 
-        public static Guid GetGuidQueryParameter(this Request request, string parameter, Guid defaultValue = default)
+        public static string GetRemoteIP(this HttpRequest request)
         {
-            var parameterValue = request.Query[parameter];
-
-            if (parameterValue.HasValue)
-            {
-                return Guid.Parse(parameterValue.Value);
-            }
-
-            return defaultValue;
-        }
-
-        public static int? GetNullableIntegerQueryParameter(this Request request, string parameter, int? defaultValue = null)
-        {
-            var parameterValue = request.Query[parameter];
-
-            if (parameterValue.HasValue)
-            {
-                return int.Parse(parameterValue.Value);
-            }
-
-            return defaultValue;
-        }
-
-        public static string GetRemoteIP(this NancyContext context)
-        {
-            if (context == null || context.Request == null)
+            if (request == null)
             {
                 return "Unknown";
             }
 
-            var remoteAddress = context.Request.UserHostAddress;
-            IPAddress remoteIP;
+            var remoteIP = request.HttpContext.Connection.RemoteIpAddress;
+            var remoteAddress = remoteIP.ToString();
 
             // Only check if forwarded by a local network reverse proxy
-            if (IPAddress.TryParse(remoteAddress, out remoteIP) && remoteIP.IsLocalAddress())
+            if (remoteIP.IsLocalAddress())
             {
-                var realIPHeader = context.Request.Headers["X-Real-IP"];
+                var realIPHeader = request.Headers["X-Real-IP"];
                 if (realIPHeader.Any())
                 {
                     return realIPHeader.First().ToString();
                 }
 
-                var forwardedForHeader = context.Request.Headers["X-Forwarded-For"];
+                var forwardedForHeader = request.Headers["X-Forwarded-For"];
                 if (forwardedForHeader.Any())
                 {
                     // Get the first address that was forwarded by a local IP to prevent remote clients faking another proxy
@@ -135,6 +105,19 @@ namespace Readarr.Http.Extensions
             }
 
             return remoteAddress;
+        }
+
+        public static void DisableCache(this IHeaderDictionary headers)
+        {
+            headers["Cache-Control"] = "no-cache, no-store";
+            headers["Expires"] = "-1";
+            headers["Pragma"] = "no-cache";
+        }
+
+        public static void EnableCache(this IHeaderDictionary headers)
+        {
+            headers["Cache-Control"] = "max-age=31536000, public";
+            headers["Last-Modified"] = BuildInfo.BuildDateTime.ToString("r");
         }
     }
 }
